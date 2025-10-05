@@ -164,13 +164,24 @@ extension ToDoListPresenter: ToDoListViewControllerOutputProtocol {
     func didSelectRow(at index: Int) {
         guard index < shownDTO.count else { return }
         let selected = allDTO[index]
-        router.openDetails(todo: selected)
+        router.openDetails(todo: selected, output: self)
     }
     
     private func isMatchesSearch(_ dto: ToDoDTO) -> Bool {
         guard let q = currentQuery, !q.isEmpty else { return true }
         
         return dto.todo.lowercased().contains(q)
+    }
+}
+
+extension ToDoListPresenter: ToDoDetailsModuleOutputProtocol {
+    func detailsDidUpdate(id: Int, newText: String) {
+        if let index = allDTO.firstIndex(where: { $0.id == id }) {
+            allDTO[index].todo = newText
+        }
+        
+        didChangeSearch(text: newText)
+        router.pop()
     }
 }
 

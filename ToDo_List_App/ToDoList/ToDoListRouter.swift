@@ -1,15 +1,20 @@
 import UIKit
 
 protocol ToDoListRouterInputProtocol {
-    func openDetails(todo: ToDoDTO)
+    func openDetails(todo: ToDoDTO, output: ToDoDetailsModuleOutputProtocol)
+    func pop()
 }
 
 class ToDoListRouter: ToDoListRouterInputProtocol {
     weak var viewController: UIViewController?
     
-    func openDetails(todo: ToDoDTO) {
-        let vc = ToDoDetailsBuilder.build(todo: todo)
+    func openDetails(todo: ToDoDTO, output: ToDoDetailsModuleOutputProtocol) {
+        let vc = ToDoDetailsBuilder.build(todo: todo, output: output)
         viewController?.navigationController?.pushViewController(vc, animated: true)
+    }
+    
+    func pop() {
+        viewController?.navigationController?.popViewController(animated: true)
     }
 }
 

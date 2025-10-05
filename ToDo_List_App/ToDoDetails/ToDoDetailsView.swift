@@ -6,10 +6,14 @@ protocol ToDoDetailsViewInputProtocol: AnyObject {
 
 protocol ToDoDetailsViewOutputProtocol {
     func viewDidLoad()
+    func didChangedText(_ text: String)
+    func viewWillDissapear()
 }
 
 class ToDoDetailsView: UIViewController {
     var output: ToDoDetailsViewOutputProtocol!
+    private let textView = UITextView()
+    private let doneIcon = UIImageView(image: UIImage(systemName: "checkmark.circle.fill"))
     
     private let titleLabel: UILabel = {
         let l = UILabel()
@@ -36,8 +40,27 @@ class ToDoDetailsView: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
+        textViewSetup()
         setupDetailsUI()
         output.viewDidLoad()
+    }
+    
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        
+        if self.isMovingToParent || self.isBeingDismissed {
+            output.viewWillDissapear()
+        }
+    }
+}
+
+extension ToDoDetailsView: UITextViewDelegate {
+    func textViewSetup() {
+        textView.font = .preferredFont(forTextStyle: .body)
+        textView.delegate = self
+        textView.alwaysBounceVertical = true
+        
+        textView.becomeFirstResponder()
     }
 }
 
