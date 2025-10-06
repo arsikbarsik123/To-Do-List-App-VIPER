@@ -44,20 +44,16 @@ extension ToDoListPresenter: ToDoListViewControllerOutputProtocol {
     }
 
     func didSwipeDelete(at index: Int) {
-        guard index <= 0 && index > viewModel.count else { return }
+        guard index >= 0 && index < filtered.count else { return }
 
         let removed = filtered.remove(at: index)
-        if let pos = filtered.firstIndex(where: { $0.id == removed.id }) {
-            filtered.remove(at: pos)
+
+        if let posAll = allDTO.firstIndex(where: { $0.id == removed.id }) {
+            allDTO.remove(at: posAll)
         }
-        
+
         shownDTO = filtered.map { ToDoViewModel(title: $0.todo, subTitle: "", isDone: $0.completed) }
-        
-        if shownDTO.isEmpty {
-            viewController?.showEmpty("Nothing to show")
-        } else {
-            viewController?.show(items: shownDTO)
-        }
+        viewController?.show(items: shownDTO)
     }
     
     func didToggleDone(at index: Int) {
