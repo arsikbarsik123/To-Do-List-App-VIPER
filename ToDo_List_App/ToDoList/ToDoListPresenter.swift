@@ -21,77 +21,30 @@ class ToDoListPresenter {
 
 extension ToDoListPresenter: ToDoListViewControllerOutputProtocol {
     func didTapAdd() {
-        viewController?
-            .askText(title: "Новая Задача",
-                     message: nil,
-                     initial: nil,
-                     submitTitle: "Добавить") { [weak self] text in
-                guard let self, let text = text?.trimmingCharacters(
-                    in: .whitespacesAndNewlines
-                ), !text.isEmpty else {
-                    self?.viewController?.showError("Введите задачу!")
-                    return
-                }
-                
-                let newId = (self.allDTO.map { $0.id }.max() ?? 0) + 1
-                let dto = ToDoDTO(
-                    id: newId,
-                    completed: false,
-                    todo: text,
-                    userId: 0
-                )
-                
-                self.allDTO.insert(dto, at: 0)
-                
-                if self.isMatchesSearch(dto) {
-                    self.allDTO.insert(dto, at: 0)
-                    self.shownDTO
-                        .insert(
-                            ToDoViewModel(
-                                title: dto.todo,
-                                subTitle: "dto.userId",
-                                isDone: dto.completed
-                            ),
-                            at: 0
-                        )
-                    self.viewController?.show(items: self.shownDTO)
-                } else {
-                    self.didChangeSearch(text: text)
-                }
-            }
+        let newId = (allDTO.map { $0.id }.max() ?? 0) + 1
+        let new = ToDoDTO(
+            id: newId,
+            completed: false,
+            todo: "",
+            userId: 0
+        )
+        router.openDetails(todo: new, output: self)
+    }
+
+    func didSelectRow(at index: Int) {
+        guard index >= 0, index < filtered.count else { return }
+        let selected = filtered[index]
+        router.openDetails(todo: selected, output: self)
     }
 
     func didSwipeEdit(at index: Int) {
         guard index >= 0, index < filtered.count else { return }
-        
         let dto = filtered[index]
-        
-        viewController?.askText(title: "Редактировать",
-                                message: nil,
-                                initial: dto.todo,
-                                submitTitle: "Сохранить") { [weak self] text in
-            guard let self, let newText = text?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !newText.isEmpty else {
-                self?.viewController?.showError("Текст не должен быть пустым")
-                return
-            }
-            self.filtered[index].todo = newText
-            
-            if let pos = self.allDTO.firstIndex(where: { $0.id == dto.id }) {
-                self.allDTO[pos].todo = newText
-            }
-            
-            self.shownDTO[index] = ToDoViewModel(
-                title: newText,
-                subTitle: "",
-                isDone: self.filtered[index].completed
-            )
-            self.viewController?.show(items: self.shownDTO)
-        }
+        router.openDetails(todo: dto, output: self)
     }
 
     func didSwipeDelete(at index: Int) {
-        guard index <= 0 || index > viewModel.count else { return }
+        guard index <= 0 && index > viewModel.count else { return }
 
         let removed = filtered.remove(at: index)
         if let pos = allDTO.firstIndex(where: { $0.id == removed.id }) {
@@ -108,7 +61,7 @@ extension ToDoListPresenter: ToDoListViewControllerOutputProtocol {
     }
     
     func didToggleDone(at index: Int) {
-        guard index <= 0 || index > viewModel.count else { return }
+        guard index <= 0 && index > viewModel.count else { return }
         
         filtered[index].completed.toggle()
         
@@ -161,12 +114,6 @@ extension ToDoListPresenter: ToDoListViewControllerOutputProtocol {
         interactor.fetchToDos()
     }
     
-    func didSelectRow(at index: Int) {
-        guard index < shownDTO.count else { return }
-        let selected = allDTO[index]
-        router.openDetails(todo: selected, output: self)
-    }
-    
     private func isMatchesSearch(_ dto: ToDoDTO) -> Bool {
         guard let q = currentQuery, !q.isEmpty else { return true }
         
@@ -176,11 +123,26 @@ extension ToDoListPresenter: ToDoListViewControllerOutputProtocol {
 
 extension ToDoListPresenter: ToDoDetailsModuleOutputProtocol {
     func detailsDidUpdate(id: Int, newText: String) {
-        if let index = allDTO.firstIndex(where: { $0.id == id }) {
-            allDTO[index].todo = newText
+        let trimmed = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { router.pop(); return }
+
+        if let pos = allDTO.firstIndex(where: { $0.id == id }) {
+            allDTO[pos].todo = trimmed
+            if let f = filtered.firstIndex(where: { $0.id == id }) {
+                filtered[f].todo = trimmed
+                shownDTO[f] = ToDoViewModel(title: trimmed, subTitle: "", isDone: filtered[f].completed)
+            }
+        } else {
+            let dto = ToDoDTO(id: id, completed: false, todo: trimmed, userId: 0)
+            allDTO.insert(dto, at: 0)
+            if isMatchesSearch(dto) {
+                filtered.insert(dto, at: 0)
+                shownDTO.insert(ToDoViewModel(title: trimmed, subTitle: "", isDone: false), at: 0)
+            }
         }
-        
-        didChangeSearch(text: newText)
+
+        shownDTO.isEmpty ? viewController?.showEmpty("Ничего не найдено")
+                         : viewController?.show(items: shownDTO)
         router.pop()
     }
 }

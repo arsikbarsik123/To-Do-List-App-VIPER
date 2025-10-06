@@ -8,8 +8,8 @@ class ToDoDetailsPresenter {
     private let todo: ToDoDTO
     weak var output: ToDoDetailsModuleOutputProtocol?
     
-    private var originalText: String = ""
-    private var currentText: String = ""
+    private var originalText: String
+    private var currentText: String
     
     init(todo: ToDoDTO, output: ToDoDetailsModuleOutputProtocol) {
         self.todo = todo
@@ -21,11 +21,8 @@ class ToDoDetailsPresenter {
 
 extension ToDoDetailsPresenter: ToDoDetailsViewOutputProtocol {
     func viewWillDissapear() {
-        let trimmed = currentText.trimmingCharacters(
-            in: .whitespacesAndNewlines
-        )
+        let trimmed = currentText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed != originalText, !trimmed.isEmpty else { return }
-        
         output?.detailsDidUpdate(id: todo.id, newText: trimmed)
     }
 

@@ -8,6 +8,7 @@ protocol ToDoDetailsViewOutputProtocol {
     func viewDidLoad()
     func didChangedText(_ text: String)
     func viewWillDissapear()
+    
 }
 
 class ToDoDetailsView: UIViewController {
@@ -54,13 +55,18 @@ class ToDoDetailsView: UIViewController {
     }
 }
 
+
+// MARK: - UITextViewDelegate
+
 extension ToDoDetailsView: UITextViewDelegate {
     func textViewSetup() {
         textView.font = .preferredFont(forTextStyle: .body)
         textView.delegate = self
         textView.alwaysBounceVertical = true
-        
-        textView.becomeFirstResponder()
+    }
+    
+    func textViewDidChange(_ textView: UITextView) {
+        output.didChangedText(textView.text ?? "")
     }
 }
 
@@ -71,6 +77,7 @@ extension ToDoDetailsView: ToDoDetailsViewInputProtocol {
         titleLabel.text = title
         bodyLabel.text = body
         statusIcon.isHidden = !isDone
+        textView.text = title
     }
 }
 
@@ -78,18 +85,27 @@ extension ToDoDetailsView: ToDoDetailsViewInputProtocol {
 
 extension ToDoDetailsView {
     func setupDetailsUI() {
-        let stack = UIStackView(arrangedSubviews: [titleLabel, bodyLabel, statusIcon])
+        let stack = UIStackView(arrangedSubviews: [statusIcon, textView])
+        stack.axis = .vertical
+        stack.spacing = 12
         stack.translatesAutoresizingMaskIntoConstraints = false
-
-        statusIcon.setContentHuggingPriority(.required, for: .horizontal)
 
         view.addSubview(stack)
         view.backgroundColor = .systemBackground
 
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 16),
-            stack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 16),
-            stack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
+            stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            stack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16),
+
+            statusIcon.heightAnchor.constraint(equalToConstant: 28)
         ])
+
+        textView.font = .preferredFont(forTextStyle: .title2)
+        textView.alwaysBounceVertical = true
+        textView.delegate = self
+        textView.becomeFirstResponder()
     }
+
 }
