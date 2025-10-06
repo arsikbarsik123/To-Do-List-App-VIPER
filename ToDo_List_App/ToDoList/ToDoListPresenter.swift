@@ -47,11 +47,11 @@ extension ToDoListPresenter: ToDoListViewControllerOutputProtocol {
         guard index <= 0 && index > viewModel.count else { return }
 
         let removed = filtered.remove(at: index)
-        if let pos = allDTO.firstIndex(where: { $0.id == removed.id }) {
-            allDTO.remove(at: pos)
+        if let pos = filtered.firstIndex(where: { $0.id == removed.id }) {
+            filtered.remove(at: pos)
         }
         
-        shownDTO = filtered.map({ ToDoViewModel(title: $0.todo, subTitle: "", isDone: $0.completed) })
+        shownDTO = filtered.map { ToDoViewModel(title: $0.todo, subTitle: "", isDone: $0.completed) }
         
         if shownDTO.isEmpty {
             viewController?.showEmpty("Nothing to show")

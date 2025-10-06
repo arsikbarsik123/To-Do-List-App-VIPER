@@ -34,24 +34,9 @@ class ToDoListView: UITableViewController {
         g.cancelsTouchesInView = false
         return g
     }()
-    
-    // Bottom panel
-//    private let bottomPanel: UIVisualEffectView = {
-//        let v = UIVisualEffectView(effect: UIBlurEffect(style: .systemChromeMaterial))
-//        v.layer.cornerRadius = 16
-//        v.clipsToBounds = true
-//        v.translatesAutoresizingMaskIntoConstraints = false
-//        return v
-//    }()
-
     private let addButton = UIButton(type: .system)
-
     private let counterLabel = UILabel()
         
-
-//    private let bottomPanelHeight: CGFloat = 64
-
-    
     override func viewDidLoad() {
         super.viewDidLoad()
         navigationItem.title = "Задачи"
@@ -66,29 +51,11 @@ class ToDoListView: UITableViewController {
         refresher.addTarget(self, action: #selector(onRefresh), for: .valueChanged)
         tableView.refreshControl = refresher
         
-        longPress.addTarget(self, action: #selector(handleLongPress(_:)))
-        tableView.addGestureRecognizer(longPress)
-        
         tableView.contentInset.bottom += 70
         tableView.scrollIndicatorInsets.bottom += 70
         
         setupBottomPanel()
         output.viewDidLoad()
-    }
-
-    @objc func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
-        let point = gesture.location(in: tableView)
-        guard gesture.state == .began, let indexPath = tableView.indexPathForRow(at: point) else { return }
-
-        let actionSheet = UIAlertController(title: nil, message: nil, preferredStyle: .actionSheet)
-        actionSheet.addAction(UIAlertAction(title: "Редактировать", style: .default) { _ in
-            self.output.didSelectRow(at: indexPath.row)
-        })
-        actionSheet.addAction(UIAlertAction(title: "Удалить", style: .destructive) { _ in
-            self.output.didSwipeDelete(at: indexPath.row)
-        })
-        actionSheet.addAction(UIAlertAction(title: "Отмена", style: .cancel))
-        present(actionSheet, animated: true)
     }
 }
 
@@ -272,5 +239,55 @@ extension ToDoListView {
         cell.accessoryType = items[indexPath.row].isDone ? .checkmark : .none
         
         return cell
+    }
+    
+    override func tableView(_ tableView: UITableView,
+                            contextMenuConfigurationForRowAt indexPath: IndexPath,
+                            point: CGPoint) -> UIContextMenuConfiguration? {
+
+        return UIContextMenuConfiguration(identifier: indexPath as NSCopying,
+                                          previewProvider: { [weak self] in
+            return nil
+        }, actionProvider: { [weak self] _ in
+
+            let edit = UIAction(title: "Редактировать",
+                                image: UIImage(systemName: "square.and.pencil")) { _ in
+                self?.output.didSwipeEdit(at: indexPath.row)
+            }
+
+            let share = UIAction(title: "Поделиться",
+                                 image: UIImage(systemName: "square.and.arrow.up")) { _ in
+                self?.didSelectShare(at: indexPath.row)
+            }
+
+            let delete = UIAction(title: "Удалить",
+                                  image: UIImage(systemName: "trash"),
+                                  attributes: [.destructive]) { _ in
+                self?.output.didSwipeDelete(at: indexPath.row)
+            }
+
+            return UIMenu(title: "", children: [edit, share, delete])
+        })
+    }
+    // share button
+    private func didSelectShare(at index: Int) {
+        let item = items[index]
+
+        var activityItems: [Any] = [item.title]
+        let note = item.subTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !note.isEmpty { activityItems.append(note) }
+
+        let vc = UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+        present(vc, animated: true)
+    }
+    
+    override func tableView(_ tableView: UITableView,
+                            willPerformPreviewActionForMenuWith configuration: UIContextMenuConfiguration,
+                            animator: UIContextMenuInteractionCommitAnimating) {
+        if let vc = animator.previewViewController {
+            animator.addCompletion { [weak self] in
+                self?.show(vc, sender: self)
+            }
+        }
     }
 }
