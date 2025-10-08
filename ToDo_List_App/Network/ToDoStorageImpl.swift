@@ -51,7 +51,7 @@ final class ToDoStorageImpl: ToDoStorage {
                 fr.fetchLimit = 1
                 fr.predicate = NSPredicate(format: "remoteID == %d", dto.id)
                 
-                if let existing = try ctx.fetch(fr).first {
+                if (try ctx.fetch(fr).first) != nil {
                     continue
                 }
     
