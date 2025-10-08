@@ -41,10 +41,11 @@ class ToDoListView: UITableViewController {
         
     override func viewDidLoad() {
         super.viewDidLoad()
-        navigationItem.title = "Задачи"
         tableView.register(UITableViewCell.self, forCellReuseIdentifier: "cell")
         tableView.addGestureRecognizer(longPress)
         
+        setupNavTitle()
+        blackTableView()
         search.obscuresBackgroundDuringPresentation = false
         search.searchResultsUpdater = self
         navigationItem.searchController = search
@@ -56,6 +57,7 @@ class ToDoListView: UITableViewController {
         tableView.contentInset.bottom += 70
         tableView.scrollIndicatorInsets.bottom += 70
         
+        
         setupBottomPanel()
         output?.viewDidLoad()
         
@@ -63,26 +65,75 @@ class ToDoListView: UITableViewController {
     }
 }
 
+// MARK: - Black Theme
+
+private extension ToDoListView {
+    func setupNavTitle() {
+        navigationItem.title = "Задачи"
+        navigationItem.largeTitleDisplayMode = .always
+        navigationController?.navigationBar.prefersLargeTitles = true
+        
+        let ap = UINavigationBarAppearance()
+        ap.configureWithOpaqueBackground()
+        ap.backgroundColor = .black
+        ap.largeTitleTextAttributes = [
+            .foregroundColor: UIColor.white,
+            .font: UIFont.systemFont(ofSize: 34, weight: .bold)
+        ]
+        ap.titleTextAttributes = [.foregroundColor: UIColor.white]
+        
+        navigationController?.navigationBar.standardAppearance = ap
+        navigationController?.navigationBar.scrollEdgeAppearance = ap
+        navigationController?.navigationBar.compactAppearance = ap
+        navigationController?.navigationBar.tintColor = .white
+    }
+    
+    func blackTableView() {
+        tableView.backgroundColor = .black
+        tableView.separatorColor = UIColor(white: 1, alpha: 0.08)
+        tableView.separatorInset = UIEdgeInsets(top: 0, left: 16, bottom: 0, right: 16)
+        tableView.indicatorStyle = .white
+
+        let tf = search.searchBar.searchTextField
+        tf.backgroundColor = UIColor(white: 0.12, alpha: 1)
+        tf.textColor = .white
+        tf.attributedPlaceholder = NSAttributedString(
+            string: "Search",
+            attributes: [.foregroundColor: UIColor.systemGray]
+        )
+    }
+    
+    func styleCell(_ cell: UITableViewCell, done: Bool) {
+        cell.backgroundColor = UIColor(white: 0.08, alpha: 1)
+        let sel = UIView()
+        sel.backgroundColor = UIColor(white: 1, alpha: 0.08)
+        cell.selectedBackgroundView = sel
+
+        cell.tintColor = .systemYellow
+    }
+
+}
+
 // MARK: - bottomPanel
 
 private extension ToDoListView {
     func setupBottomPanel() {
         bar.translatesAutoresizingMaskIntoConstraints = false
-        bar.backgroundColor = .secondarySystemBackground
         bar.layer.cornerRadius = 0
         bar.layer.masksToBounds = false
+        bar.backgroundColor = .black
         guard let host = navigationController?.view else { return }
         
         addButton.translatesAutoresizingMaskIntoConstraints = false
-        addButton.tintColor = .red
         addButton.setPreferredSymbolConfiguration(.init(pointSize: 17, weight: .semibold), forImageIn: .normal)
+        addButton.tintColor = .systemYellow
         addButton.addTarget(self, action: #selector(onAdd), for: .touchUpInside)
         
-        counterLabel.textColor = .secondaryLabel
+        counterLabel.textColor = .white
         counterLabel.font = .preferredFont(forTextStyle: .footnote)
         counterLabel.translatesAutoresizingMaskIntoConstraints = false
         counterLabel.textAlignment = .center
-        counterLabel.text = "\(items.count) задач"
+        counterLabel.text = "\(items.count) " + tasksWordRu(for: items.count)
         
         if #available(iOS 15.0, *) {
             var cfg = UIButton.Configuration.plain()
@@ -123,6 +174,19 @@ private extension ToDoListView {
             addButton.widthAnchor.constraint(equalToConstant: 28),
             addButton.heightAnchor.constraint(equalToConstant: 28)
         ])
+    }
+    
+    private func tasksWordRu(for n: Int) -> String {
+        let n = n % 100
+        let n1 = n % 10
+        if n > 10 && n < 20 { return "задач" }
+        if n1 == 1 { return "задача" }
+        if (2...4).contains(n1) { return "задачи" }
+        return "задач"
+    }
+    
+    private func setCounter(_ count: Int) {
+        counterLabel.text = "\(count) " + tasksWordRu(for: count)
     }
 
     @objc private func onAdd() { output?.didTapAdd() }
@@ -207,7 +271,7 @@ extension ToDoListView: ToDoListViewControllerInputProtocol {
     func show(items: [ToDoViewModel]) {
         tableView.backgroundView = nil
         self.items = items
-        counterLabel.text = "\(items.count) задач"
+        counterLabel.text = "\(items.count) " + tasksWordRu(for: items.count)
         tableView.reloadData()
     }
     
@@ -238,13 +302,29 @@ extension ToDoListView {
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath)
+
+        let item = items[indexPath.row]
         var conf = UIListContentConfiguration.subtitleCell()
-        
-        conf.text = items[indexPath.row].title
-        conf.secondaryText = items[indexPath.row].subTitle
+
+        conf.text = item.title
+        conf.secondaryText = item.subTitle
+
+        conf.textProperties.color = item.isDone ? .systemGray2 : .white
+        conf.textProperties.font = .systemFont(ofSize: 17, weight: .semibold)
+
+        conf.secondaryTextProperties.color = .systemGray
+        conf.secondaryTextProperties.font = .systemFont(ofSize: 13)
+
         cell.contentConfiguration = conf
-        cell.accessoryType = items[indexPath.row].isDone ? .checkmark : .none
-        
+
+        let symbolName = item.isDone ? "checkmark.circle.fill" : "circle"
+        let iv = UIImageView(image: UIImage(systemName: symbolName))
+        iv.tintColor = item.isDone ? .systemYellow : .systemGray3
+        iv.contentMode = .scaleAspectFit
+        iv.frame = .init(x: 0, y: 0, width: 22, height: 22)
+        cell.accessoryView = iv
+
+        styleCell(cell, done: item.isDone)
         return cell
     }
     
@@ -276,6 +356,7 @@ extension ToDoListView {
             return UIMenu(title: "", children: [edit, share, delete])
         })
     }
+    
     // share button
     private func didSelectShare(at index: Int) {
         let item = items[index]
