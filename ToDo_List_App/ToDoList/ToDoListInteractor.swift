@@ -112,6 +112,7 @@ extension ToDoListInteractor: ToDoListInteractorInputProtocol {
         let ctx = CoreDataStack.shared.newChildContext()
         let draft = ToDoRecord(context: ctx)
         draft.id = UUID()
+        draft.remoteID = 0 
         draft.completed = false
         draft.createdAt = Date()
         output?.openDetails(objectID: draft.objectID, in: ctx)
@@ -125,7 +126,6 @@ extension ToDoListInteractor: ToDoListInteractorInputProtocol {
             switch result {
             case .success(let dtos):
                 do {
-                    if force { try self.storage.clearAll() }
                     try self.storage.importTodos(dtos)
                     UserDefaults.standard.set(true, forKey: self.seedFlagKey)
                     DispatchQueue.main.async {

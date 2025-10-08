@@ -43,26 +43,28 @@ final class ToDoStorageImpl: ToDoStorage {
     func importTodos(_ dtos: [ToDoDTO]) throws {
         let ctx = CoreDataStack.shared.newBackgroundContext()
 
-        ctx.perform {
-            let base = Date(timeIntervalSince1970: 1000000)
+        try ctx.performAndWait {
+            let base = Date().addingTimeInterval(-3600)
             
             for (idx, dto) in dtos.enumerated() {
+                let fr: NSFetchRequest<ToDoRecord> = ToDoRecord.fetchRequest()
+                fr.fetchLimit = 1
+                fr.predicate = NSPredicate(format: "remoteID == %d", dto.id)
+                
+                if let existing = try ctx.fetch(fr).first {
+                    continue
+                }
+    
                 let obj = ToDoRecord(context: ctx)
                 obj.id = UUID()
                 obj.title = dto.todo
+                obj.remoteID = Int64(dto.id)
                 obj.note = ""
                 obj.completed = dto.completed
-                obj.createdAt = Date()
-                
                 obj.createdAt = base.addingTimeInterval(TimeInterval(-idx))
             }
 
-            do {
-                try CoreDataStack.shared.save(ctx)
-                print("Imported \(dtos.count) todos into CoreData")
-            } catch {
-                print("Import error: \(error)")
-            }
+            try CoreDataStack.shared.save(ctx)
         }
     }
     
@@ -79,6 +81,7 @@ final class ToDoStorageImpl: ToDoStorage {
                 NSManagedObjectContext.mergeChanges(fromRemoteContextSave: changes,
                                                     into: [CoreDataStack.shared.viewContext])
             }
+            
             try CoreDataStack.shared.save(ctx)
         }
     }
