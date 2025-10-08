@@ -1,18 +1,30 @@
 import UIKit
+import CoreData
 
-protocol ToDoDetailsRouterInputProtocol {}
+protocol ToDoDetailsRouterInputProtocol: AnyObject { }
 
-class ToDoDetailsRouter: ToDoDetailsRouterInputProtocol {
-    
+final class ToDoDetailsRouter: ToDoDetailsRouterInputProtocol {
+    weak var viewController: UIViewController?
 }
 
+// MARK: - Builder
+
 enum ToDoDetailsBuilder {
-    static func build(todo: ToDoDTO) -> UIViewController {
+    static func build(objectID: NSManagedObjectID,
+                      context: NSManagedObjectContext) -> UIViewController {
         let view = ToDoDetailsView()
-        let presenter = ToDoDetailsPresenter(todo: todo)
+        let interactor = ToDoDetailsInteractor()
+        let router = ToDoDetailsRouter()
+        let presenter = ToDoDetailsPresenter(view: view,
+                                             interactor: interactor,
+                                             router: router)
+
         view.output = presenter
-        presenter.view = view
-        
+        router.viewController = view
+
+        interactor.configure(objectID: objectID, editingContext: context)
+
         return view
     }
 }
+

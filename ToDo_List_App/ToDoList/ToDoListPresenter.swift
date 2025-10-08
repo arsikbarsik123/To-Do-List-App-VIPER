@@ -1,13 +1,15 @@
+import CoreData
 
 class ToDoListPresenter {
     private let interactor: ToDoListInteractorInputProtocol
     private let router: ToDoListRouterInputProtocol
     private var viewModel: [ToDoViewModel] = []
-    private var all: [ToDoViewModel] = [] // для View
+    
     private var filtered: [ToDoDTO] = [] // для View
     private var allDTO: [ToDoDTO] = [] // network data
     private var shownDTO: [ToDoViewModel] = [] // подготовленные данные allDTO из сети для отображения
     private var currentQuery: String?
+    private var visibleIDs: [NSManagedObjectID] = []
 
     weak var viewController: ToDoListViewControllerInputProtocol?
 
@@ -21,107 +23,34 @@ class ToDoListPresenter {
 
 extension ToDoListPresenter: ToDoListViewControllerOutputProtocol {
     func didTapAdd() {
-        viewController?
-            .askText(title: "Новая Задача",
-                     message: nil,
-                     initial: nil,
-                     submitTitle: "Добавить") { [weak self] text in
-                guard let self, let text = text?.trimmingCharacters(
-                    in: .whitespacesAndNewlines
-                ), !text.isEmpty else {
-                    self?.viewController?.showError("Введите задачу!")
-                    return
-                }
-                
-                let newId = (self.allDTO.map { $0.id }.max() ?? 0) + 1
-                let dto = ToDoDTO(
-                    id: newId,
-                    completed: false,
-                    todo: text,
-                    userId: 0
-                )
-                
-                self.allDTO.insert(dto, at: 0)
-                
-                if self.isMatchesSearch(dto) {
-                    self.allDTO.insert(dto, at: 0)
-                    self.shownDTO
-                        .insert(
-                            ToDoViewModel(
-                                title: dto.todo,
-                                subTitle: "dto.userId",
-                                isDone: dto.completed
-                            ),
-                            at: 0
-                        )
-                    self.viewController?.show(items: self.shownDTO)
-                } else {
-                    self.didChangeSearch(text: text)
-                }
-            }
+        let newId = (allDTO.map { $0.id }.max() ?? 0) + 1
+        let new = ToDoDTO(
+            id: newId,
+            completed: false,
+            todo: "",
+            userId: 0
+        )
+        interactor.addTapped()
+    }
+
+    func didSelectRow(at index: Int) {
+        guard index >= 0, index < visibleIDs.count else { return }
+        interactor.edit(objectID: visibleIDs[index])
     }
 
     func didSwipeEdit(at index: Int) {
-        guard index >= 0, index < filtered.count else { return }
-        
-        let dto = filtered[index]
-        
-        viewController?.askText(title: "Редактировать",
-                                message: nil,
-                                initial: dto.todo,
-                                submitTitle: "Сохранить") { [weak self] text in
-            guard let self, let newText = text?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !newText.isEmpty else {
-                self?.viewController?.showError("Текст не должен быть пустым")
-                return
-            }
-            self.filtered[index].todo = newText
-            
-            if let pos = self.allDTO.firstIndex(where: { $0.id == dto.id }) {
-                self.allDTO[pos].todo = newText
-            }
-            
-            self.shownDTO[index] = ToDoViewModel(
-                title: newText,
-                subTitle: "",
-                isDone: self.filtered[index].completed
-            )
-            self.viewController?.show(items: self.shownDTO)
-        }
+        guard index >= 0, index < visibleIDs.count else { return }
+        interactor.edit(objectID: visibleIDs[index])
     }
 
     func didSwipeDelete(at index: Int) {
-        guard index <= 0 || index > viewModel.count else { return }
-
-        let removed = filtered.remove(at: index)
-        if let pos = allDTO.firstIndex(where: { $0.id == removed.id }) {
-            allDTO.remove(at: pos)
-        }
-        
-        shownDTO = filtered.map({ ToDoViewModel(title: $0.todo, subTitle: "", isDone: $0.completed) })
-        
-        if shownDTO.isEmpty {
-            viewController?.showEmpty("Nothing to show")
-        } else {
-            viewController?.show(items: shownDTO)
-        }
+        guard index >= 0, index < visibleIDs.count else { return }
+        interactor.delete(objectID: visibleIDs[index])
     }
     
     func didToggleDone(at index: Int) {
-        guard index <= 0 || index > viewModel.count else { return }
-        
-        filtered[index].completed.toggle()
-        
-        if let pos = allDTO.firstIndex(where: { $0.id == filtered[index].id }) {
-            allDTO[pos].completed = filtered[pos].completed
-        }
-            
-        shownDTO[index] = ToDoViewModel(
-            title: filtered[index].todo,
-            subTitle: "",
-            isDone: filtered[index].completed
-        )
-        viewController?.show(items: shownDTO)
+        guard index >= 0, index < visibleIDs.count else { return }
+        interactor.toggleDone(objectID: visibleIDs[index])
     }
     
     func didFailLoad(_ message: String) {
@@ -135,36 +64,18 @@ extension ToDoListPresenter: ToDoListViewControllerOutputProtocol {
     }
     
     func didPullToRefresh() {
-        interactor.fetchToDos()
-    }
-    
-    func didChangeSearch(text: String) {
-        let q = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        currentQuery = q
-        
-        filtered = q.isEmpty
-          ? allDTO
-          : allDTO.filter { $0.todo.lowercased().contains(q) }
-
-        shownDTO = filtered.map {
-            ToDoViewModel(title: $0.todo,
-                          subTitle: "",
-                          isDone: $0.completed)
-        }
-        shownDTO.isEmpty
-          ? viewController?.showEmpty("Ничего не найдено")
-          : viewController?.show(items: shownDTO)
-    }
-    
-    func viewDidLoad() {
         viewController?.showLoading(true)
         interactor.fetchToDos()
     }
     
-    func didSelectRow(at index: Int) {
-        guard index < shownDTO.count else { return }
-        let selected = allDTO[index]
-        router.openDetails(todo: selected)
+    func didChangeSearch(text: String) {
+        currentQuery = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        reloadData()
+    }
+    
+    func viewDidLoad() {
+//        viewController?.showLoading(true)
+        interactor.start() 
     }
     
     private func isMatchesSearch(_ dto: ToDoDTO) -> Bool {
@@ -177,27 +88,41 @@ extension ToDoListPresenter: ToDoListViewControllerOutputProtocol {
 // MARK: - ToDoListInteractorOutputProtocol
 
 extension ToDoListPresenter: ToDoListInteractorOutputProtocol {
-    func didLoad(toDos: [ToDoDTO]) {
-        shownDTO = toDos.map {
-            ToDoViewModel(title: $0.todo,
-                          subTitle: "",
-                          isDone: $0.completed)
-        }
-        all = shownDTO
-        allDTO = toDos
-        filtered = toDos
-        
+
+    func reloadData() {
         viewController?.showLoading(false)
-        
-        if shownDTO.isEmpty {
-            viewController?.showEmpty("No Activities")
-        } else {
-            viewController?.show(items: shownDTO)
+
+        let df = DateFormatter()
+        df.dateStyle = .short
+        df.timeStyle = .none
+
+        var items: [ToDoViewModel] = []
+        var ids: [NSManagedObjectID] = []
+
+        let rows = interactor.numberOfRows
+        for row in 0..<rows {
+            let rec = interactor.model(at: IndexPath(row: row, section: 0))
+            if let q = currentQuery, !q.isEmpty,
+               !(rec.title ?? "").lowercased().contains(q) { continue }
+
+            ids.append(rec.objectID)
+            items.append(.init(title: rec.title ?? "",
+                               subTitle: rec.createdAt.map { df.string(from: $0) } ?? "",
+                               isDone: rec.completed))
         }
+
+        visibleIDs = ids
+        items.isEmpty ? viewController?.showEmpty("Ничего не найдено")
+                      : viewController?.show(items: items)
     }
-    
-    func failLoad(_ error: any Error) {
+
+
+    func failLoad(_ error: Error) {
         viewController?.showLoading(false)
         viewController?.showError(error.localizedDescription)
+    }
+
+    func openDetails(objectID: NSManagedObjectID, in context: NSManagedObjectContext) {
+        router.openDetails(objectID: objectID, in: context)
     }
 }

@@ -1,72 +1,111 @@
 import UIKit
 
 protocol ToDoDetailsViewInputProtocol: AnyObject {
-    func show(title: String, body: String, isDone: Bool)
+    func show(title: String, note: String, completed: Bool)
 }
 
-protocol ToDoDetailsViewOutputProtocol {
+protocol ToDoDetailsViewOutputProtocol: AnyObject {
     func viewDidLoad()
+    func titleChanged(_ text: String)
+    func noteChanged(_ text: String)
+    func completedChanged(_ value: Bool)
+    func viewWillDisappear()
 }
 
-class ToDoDetailsView: UIViewController {
-    var output: ToDoDetailsViewOutputProtocol!
-    
-    private let titleLabel: UILabel = {
-        let l = UILabel()
-        l.font = .preferredFont(forTextStyle: .title2)
-        l.numberOfLines = 0
+final class ToDoDetailsView: UIViewController {
+    var output: ToDoDetailsViewControllerOutputProtocol?
 
-        return l
-    }()
-    private let bodyLabel: UILabel = {
-        let l = UILabel()
-        l.font = .preferredFont(forTextStyle: .body)
-        l.numberOfLines = 0
-        l.textColor = .secondaryLabel
-
-        return l
-    }()
-    private let statusIcon: UIImageView = {
-        let icon = UIImageView(image: UIImage(systemName: "checkmark.circle.fill"))
-        icon.contentMode = .scaleAspectFit
-
-        return icon
-    }()
+    private let titleTextView = UITextView()
+    private let titleField = UITextField()
+    private let noteTextView = UITextView()
+    private let notePlaceholder = UILabel()
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        view.backgroundColor = .systemBackground
+        setupUI()
+        output?.viewDidLoad()
+    }
 
-        setupDetailsUI()
-        output.viewDidLoad()
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        output?.viewWillDisappear()
     }
 }
 
-// MARK: - ToDoDetailsViewInputProtocol
+// MARK: - ToDoDetailsViewControllerInputProtocol
 
-extension ToDoDetailsView: ToDoDetailsViewInputProtocol {
-    func show(title: String, body: String, isDone: Bool) {
-        titleLabel.text = title
-        bodyLabel.text = body
-        statusIcon.isHidden = !isDone
+extension ToDoDetailsView: ToDoDetailsViewControllerInputProtocol {
+    func show(title: String, note: String, completed: Bool) {
+        titleField.text = title
+        noteTextView.text = note
+        notePlaceholder.isHidden = !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 
-// MARK: - setupDetailsUI
 
-extension ToDoDetailsView {
-    func setupDetailsUI() {
-        let stack = UIStackView(arrangedSubviews: [titleLabel, bodyLabel, statusIcon])
+// MARK: - Setup
+
+private extension ToDoDetailsView {
+    func setupUI() {
+        view.backgroundColor = .systemBackground
+        
+        let topInset = noteTextView.textContainerInset.top
+        let leftInset = noteTextView.textContainerInset.left + noteTextView.textContainer.lineFragmentPadding
+
+        titleField.font = .preferredFont(forTextStyle: .title2)
+        titleField.placeholder = "Название"
+        titleField.clearButtonMode = .whileEditing
+        titleField.addTarget(self, action: #selector(onTitleChanged), for: .editingChanged)
+
+        noteTextView.font = .preferredFont(forTextStyle: .body)
+        noteTextView.delegate = self
+        noteTextView.isScrollEnabled = true
+        noteTextView.backgroundColor = .clear
+
+        notePlaceholder.text = "Заметка"
+        notePlaceholder.textColor = .secondaryLabel
+        notePlaceholder.font = .preferredFont(forTextStyle: .body)
+        notePlaceholder.translatesAutoresizingMaskIntoConstraints = false
+        noteTextView.addSubview(notePlaceholder)
+        NSLayoutConstraint.activate([
+            notePlaceholder.topAnchor.constraint(equalTo: noteTextView.topAnchor, constant: topInset),
+            notePlaceholder.leadingAnchor.constraint(equalTo: noteTextView.leadingAnchor, constant: leftInset),
+            notePlaceholder.trailingAnchor.constraint(lessThanOrEqualTo: noteTextView.trailingAnchor,
+                                                     constant: -(noteTextView.textContainerInset.right + noteTextView.textContainer.lineFragmentPadding))
+        ])
+
+        let stack = UIStackView(arrangedSubviews: [titleField, noteTextView])
+        stack.axis = .vertical
+        stack.spacing = 12
         stack.translatesAutoresizingMaskIntoConstraints = false
 
-        statusIcon.setContentHuggingPriority(.required, for: .horizontal)
-
         view.addSubview(stack)
-        view.backgroundColor = .systemBackground
 
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 16),
-            stack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 16),
-            stack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
+            stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+
+            // ВАЖНО: даём высоту textView, иначе он 0 в UIStackView
+            noteTextView.heightAnchor.constraint(greaterThanOrEqualToConstant: 180)
         ])
+
+        titleField.becomeFirstResponder()
+    }
+
+    @objc private func onTitleChanged(_ sender: UITextField) {
+        output?.titleChanged(sender.text ?? "")
+    }
+
+}
+
+// MARK: - UITextViewDelegate
+
+extension ToDoDetailsView: UITextViewDelegate {
+    func textViewDidChange(_ textView: UITextView) {
+        notePlaceholder.isHidden = !textView.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        output?.noteChanged(textView.text ?? "")
     }
 }
+

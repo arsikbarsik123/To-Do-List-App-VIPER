@@ -1,4 +1,5 @@
 import UIKit
+import CoreData
 
 protocol ToDoListViewControllerInputProtocol: AnyObject {
     func show(items: [ToDoViewModel])
@@ -6,7 +7,7 @@ protocol ToDoListViewControllerInputProtocol: AnyObject {
     func showError(_ message: String)
     func showEmpty(_ message: String)
     func showErrorState(_ message: String)
-    func askText(title: String, message: String?, initial: String?, submitTitle: String, completion: @escaping (String?) -> Void)
+    func reloadData()
 }
 
 protocol ToDoListViewControllerOutputProtocol {
@@ -23,24 +24,26 @@ protocol ToDoListViewControllerOutputProtocol {
 }
 
 class ToDoListView: UITableViewController {
-    var output: ToDoListViewControllerOutputProtocol!
+    var output: ToDoListViewControllerOutputProtocol?
+    private let bar = UIView()
     private var items: [ToDoViewModel] = []
     private let activity = UIActivityIndicatorView(style: .medium)
     private let search = UISearchController(searchResultsController: nil)
     private let refresher = UIRefreshControl()
-    
+    private let longPress: UILongPressGestureRecognizer = {
+        let g = UILongPressGestureRecognizer()
+        g.minimumPressDuration = 0.4
+        g.cancelsTouchesInView = false
+        return g
+    }()
+    private let addButton = UIButton(type: .system)
+    private let counterLabel = UILabel()
+        
     override func viewDidLoad() {
         super.viewDidLoad()
         navigationItem.title = "Задачи"
         tableView.register(UITableViewCell.self, forCellReuseIdentifier: "cell")
-        navigationItem.rightBarButtonItems = [
-            UIBarButtonItem(
-                barButtonSystemItem: .add,
-                target: self,
-                action: #selector(onAdd)
-            ),
-            UIBarButtonItem(customView: activity)
-        ]
+        tableView.addGestureRecognizer(longPress)
         
         search.obscuresBackgroundDuringPresentation = false
         search.searchResultsUpdater = self
@@ -50,57 +53,123 @@ class ToDoListView: UITableViewController {
         refresher.addTarget(self, action: #selector(onRefresh), for: .valueChanged)
         tableView.refreshControl = refresher
         
-        output.viewDidLoad()
+        tableView.contentInset.bottom += 70
+        tableView.scrollIndicatorInsets.bottom += 70
+        
+        setupBottomPanel()
+        output?.viewDidLoad()
+        
+        let req: NSFetchRequest<ToDoRecord> = ToDoRecord.fetchRequest()
     }
-    
-    @objc func onAdd(_ sender: UIButton) {
-        output.didTapAdd()
+}
+
+// MARK: - bottomPanel
+
+private extension ToDoListView {
+    func setupBottomPanel() {
+        bar.translatesAutoresizingMaskIntoConstraints = false
+        bar.backgroundColor = .secondarySystemBackground
+        bar.layer.cornerRadius = 0
+        bar.layer.masksToBounds = false
+        guard let host = navigationController?.view else { return }
+        
+        addButton.translatesAutoresizingMaskIntoConstraints = false
+        addButton.tintColor = .red
+        addButton.setPreferredSymbolConfiguration(.init(pointSize: 17, weight: .semibold), forImageIn: .normal)
+        addButton.addTarget(self, action: #selector(onAdd), for: .touchUpInside)
+        
+        counterLabel.textColor = .secondaryLabel
+        counterLabel.font = .preferredFont(forTextStyle: .footnote)
+        counterLabel.translatesAutoresizingMaskIntoConstraints = false
+        counterLabel.textAlignment = .center
+        counterLabel.text = "\(items.count) задач"
+        
+        if #available(iOS 15.0, *) {
+            var cfg = UIButton.Configuration.plain()
+            cfg.image = UIImage(systemName: "square.and.pencil")
+            cfg.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12)
+            addButton.configuration = cfg
+        } else {
+            addButton.setImage(UIImage(systemName: "square.and.pencil"), for: .normal)
+            addButton.contentEdgeInsets = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
+        }
+        
+        let blur = UIVisualEffectView(effect: UIBlurEffect(style: .systemThinMaterial))
+        blur.translatesAutoresizingMaskIntoConstraints = false
+        
+        host.addSubview(bar)
+        bar.addSubview(blur)
+        bar.addSubview(addButton)
+        bar.addSubview(counterLabel)
+        
+        NSLayoutConstraint.activate([
+            bar.leadingAnchor.constraint(equalTo: host.leadingAnchor),
+            bar.trailingAnchor.constraint(equalTo: host.trailingAnchor),
+            bar.bottomAnchor.constraint(equalTo: host.bottomAnchor),
+            bar.heightAnchor.constraint(equalToConstant: 70),
+
+            blur.topAnchor.constraint(equalTo: bar.topAnchor),
+            blur.bottomAnchor.constraint(equalTo: bar.bottomAnchor),
+            blur.leadingAnchor.constraint(equalTo: bar.leadingAnchor),
+            blur.trailingAnchor.constraint(equalTo: bar.trailingAnchor),
+            
+            counterLabel.centerYAnchor.constraint(equalTo: bar.centerYAnchor),
+            counterLabel.centerXAnchor.constraint(equalTo: bar.centerXAnchor),
+            counterLabel.widthAnchor.constraint(equalToConstant: 100),
+            counterLabel.heightAnchor.constraint(equalToConstant: 20),
+
+            addButton.trailingAnchor.constraint(equalTo: bar.trailingAnchor, constant: -12),
+            addButton.centerYAnchor.constraint(equalTo: bar.centerYAnchor),
+            addButton.widthAnchor.constraint(equalToConstant: 28),
+            addButton.heightAnchor.constraint(equalToConstant: 28)
+        ])
     }
+
+    @objc private func onAdd() { output?.didTapAdd() }
 }
 
 // MARK: - Placeholder
 
 private extension ToDoListView {
     func makePlaceholder(_ message: String) -> UIView {
-        let label: UILabel = {
-            let l = UILabel()
-            l.text = message
-            l.numberOfLines = 0
-            l.translatesAutoresizingMaskIntoConstraints = false
-            l.textAlignment = .center
-            
-            return l
-        }()
-        
-        let button: UIButton = {
-            let b = UIButton()
-            b.setTitle(message, for: .normal)
-            b.addTarget(self, action: #selector(onRetry), for: .touchUpInside)
-            
-            return b
-        }()
-        
+        let label = UILabel()
+        label.text = message
+        label.numberOfLines = 0
+        label.textAlignment = .center
+
+        let button = UIButton(type: .system)
+        button.setTitle("Повторить", for: .normal)
+        button.addTarget(self, action: #selector(onRetry), for: .touchUpInside)
+
         let stack = UIStackView(arrangedSubviews: [label, button])
         stack.axis = .vertical
         stack.alignment = .center
         stack.spacing = 8
         stack.translatesAutoresizingMaskIntoConstraints = false
-        
+
         let container = UIView()
         container.addSubview(stack)
 
         NSLayoutConstraint.activate([
-            container.centerXAnchor.constraint(equalTo: container.centerXAnchor),
-            container.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            container.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16),
-            container.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16),
+            stack.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            stack.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            stack.leadingAnchor
+                .constraint(
+                    greaterThanOrEqualTo: container.safeAreaLayoutGuide.leadingAnchor,
+                    constant: 16
+                ),
+            stack.trailingAnchor
+                .constraint(
+                    lessThanOrEqualTo: container.safeAreaLayoutGuide.trailingAnchor,
+                    constant: -16
+                )
         ])
-        
+
         return container
     }
     
     @objc func onRetry() {
-        output.didTapRetry()
+        output?.didTapRetry()
     }
 }
 
@@ -108,50 +177,19 @@ private extension ToDoListView {
 
 extension ToDoListView: UISearchResultsUpdating {
     func updateSearchResults(for searchController: UISearchController) {
-        output.didChangeSearch(text: search.searchBar.text ?? "")
+        output?.didChangeSearch(text: search.searchBar.text ?? "")
     }
     
     @objc func onRefresh() {
-        output.didPullToRefresh()
+        output?.didPullToRefresh()
     }
 }
 
 // MARK: - ToDoListViewControllerInputProtocol
 
 extension ToDoListView: ToDoListViewControllerInputProtocol {
-    func askText(
-        title: String,
-        message: String?,
-        initial: String?,
-        submitTitle: String,
-        completion: @escaping (String?) -> Void
-    ) {
-        let a = UIAlertController(
-            title: title,
-            message: message,
-            preferredStyle: .alert
-        )
-        a.addTextField {
-            $0.text = initial
-            $0.clearButtonMode = .whileEditing
-        }
-        a.addAction(
-            UIAlertAction(
-                title: "Oтмена",
-                style: .cancel,
-                handler: { _ in completion(nil) }
-            )
-        )
-        a.addAction(
-            UIAlertAction(
-                title: submitTitle,
-                style: .default,
-                handler: { _ in
-                    completion(a.textFields?.first?.text)
-                }
-            )
-        )
-        present(a, animated: true)
+    func reloadData() {
+        tableView.reloadData()
     }
 
     func showEmpty(_ message: String) {
@@ -169,19 +207,21 @@ extension ToDoListView: ToDoListViewControllerInputProtocol {
     func show(items: [ToDoViewModel]) {
         tableView.backgroundView = nil
         self.items = items
+        counterLabel.text = "\(items.count) задач"
         tableView.reloadData()
     }
     
     func showLoading(_ isLoading: Bool) {
-        isLoading ? activity.startAnimating() : activity.stopAnimating()
-        !isLoading ? refresher.endRefreshing() : ()
+        refresher.endRefreshing()
     }
+
     
     func showError(_ message: String) {
         let a = UIAlertController(title: "Ошибка", message: message, preferredStyle: .alert)
         a.addAction(UIAlertAction(title: "OK", style: .default))
         present(a,animated: true)
     }
+    
 }
 
 // MARK: - tableView
@@ -189,7 +229,7 @@ extension ToDoListView: ToDoListViewControllerInputProtocol {
 extension ToDoListView {
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        output.didSelectRow(at: indexPath.row)
+        output?.didSelectRow(at: indexPath.row)
     }
     
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -208,35 +248,53 @@ extension ToDoListView {
         return cell
     }
     
-    override func tableView(_ tableView: UITableView, leadingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
-        let isDone = items[indexPath.row].isDone
-        let title = isDone ? "Снять" : "Готово"
-        
-        let done = UIContextualAction(style: .normal, title: title) { [weak self] _, _, finish in
-            self?.output.didToggleDone(at: indexPath.row)
-            finish(true)
-        }
-        
-        done.backgroundColor = .systemGreen
-        return UISwipeActionsConfiguration(actions: [done])
+    override func tableView(_ tableView: UITableView,
+                            contextMenuConfigurationForRowAt indexPath: IndexPath,
+                            point: CGPoint) -> UIContextMenuConfiguration? {
+
+        return UIContextMenuConfiguration(identifier: indexPath as NSCopying,
+                                          previewProvider: { [weak self] in
+            return nil
+        }, actionProvider: { [weak self] _ in
+
+            let edit = UIAction(title: "Редактировать",
+                                image: UIImage(systemName: "square.and.pencil")) { _ in
+                self?.output?.didSwipeEdit(at: indexPath.row)
+            }
+
+            let share = UIAction(title: "Поделиться",
+                                 image: UIImage(systemName: "square.and.arrow.up")) { _ in
+                self?.didSelectShare(at: indexPath.row)
+            }
+
+            let delete = UIAction(title: "Удалить",
+                                  image: UIImage(systemName: "trash"),
+                                  attributes: [.destructive]) { _ in
+                self?.output?.didSwipeDelete(at: indexPath.row)
+            }
+
+            return UIMenu(title: "", children: [edit, share, delete])
+        })
+    }
+    // share button
+    private func didSelectShare(at index: Int) {
+        let item = items[index]
+
+        var activityItems: [Any] = [item.title]
+        let note = item.subTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !note.isEmpty { activityItems.append(note) }
+
+        let vc = UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+        present(vc, animated: true)
     }
     
-    override func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
-        let edit = UIContextualAction(
-            style: .normal,
-            title: "Редактировать"
-        ) { [weak self] _, _, finish in
-            self?.output.didSwipeEdit(at: indexPath.row)
-            finish(true)
+    override func tableView(_ tableView: UITableView,
+                            willPerformPreviewActionForMenuWith configuration: UIContextMenuConfiguration,
+                            animator: UIContextMenuInteractionCommitAnimating) {
+        if let vc = animator.previewViewController {
+            animator.addCompletion { [weak self] in
+                self?.show(vc, sender: self)
+            }
         }
-        
-        let delete = UIContextualAction(
-            style: .destructive,
-            title: "Удалить"
-        ) { [weak self] _, _, finish in
-            self?.output.didSwipeDelete(at: indexPath.row)
-            finish(true)
-        }
-        return UISwipeActionsConfiguration(actions: [edit, delete])
     }
 }
