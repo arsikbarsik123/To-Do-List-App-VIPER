@@ -1,13 +1,15 @@
+import CoreData
 
 class ToDoListPresenter {
     private let interactor: ToDoListInteractorInputProtocol
     private let router: ToDoListRouterInputProtocol
     private var viewModel: [ToDoViewModel] = []
-    private var all: [ToDoViewModel] = [] // для View
+    
     private var filtered: [ToDoDTO] = [] // для View
     private var allDTO: [ToDoDTO] = [] // network data
     private var shownDTO: [ToDoViewModel] = [] // подготовленные данные allDTO из сети для отображения
     private var currentQuery: String?
+    private var visibleIDs: [NSManagedObjectID] = []
 
     weak var viewController: ToDoListViewControllerInputProtocol?
 
@@ -28,49 +30,27 @@ extension ToDoListPresenter: ToDoListViewControllerOutputProtocol {
             todo: "",
             userId: 0
         )
-        router.openDetails(todo: new, output: self)
+        interactor.addTapped()
     }
 
     func didSelectRow(at index: Int) {
-        guard index >= 0, index < filtered.count else { return }
-        let selected = filtered[index]
-        router.openDetails(todo: selected, output: self)
+        guard index >= 0, index < visibleIDs.count else { return }
+        interactor.edit(objectID: visibleIDs[index])
     }
 
     func didSwipeEdit(at index: Int) {
-        guard index >= 0, index < filtered.count else { return }
-        let dto = filtered[index]
-        router.openDetails(todo: dto, output: self)
+        guard index >= 0, index < visibleIDs.count else { return }
+        interactor.edit(objectID: visibleIDs[index])
     }
 
     func didSwipeDelete(at index: Int) {
-        guard index >= 0 && index < filtered.count else { return }
-
-        let removed = filtered.remove(at: index)
-
-        if let posAll = allDTO.firstIndex(where: { $0.id == removed.id }) {
-            allDTO.remove(at: posAll)
-        }
-
-        shownDTO = filtered.map { ToDoViewModel(title: $0.todo, subTitle: "", isDone: $0.completed) }
-        viewController?.show(items: shownDTO)
+        guard index >= 0, index < visibleIDs.count else { return }
+        interactor.delete(objectID: visibleIDs[index])
     }
     
     func didToggleDone(at index: Int) {
-        guard index <= 0 && index > viewModel.count else { return }
-        
-        filtered[index].completed.toggle()
-        
-        if let pos = allDTO.firstIndex(where: { $0.id == filtered[index].id }) {
-            allDTO[pos].completed = filtered[pos].completed
-        }
-            
-        shownDTO[index] = ToDoViewModel(
-            title: filtered[index].todo,
-            subTitle: "",
-            isDone: filtered[index].completed
-        )
-        viewController?.show(items: shownDTO)
+        guard index >= 0, index < visibleIDs.count else { return }
+        interactor.toggleDone(objectID: visibleIDs[index])
     }
     
     func didFailLoad(_ message: String) {
@@ -84,30 +64,18 @@ extension ToDoListPresenter: ToDoListViewControllerOutputProtocol {
     }
     
     func didPullToRefresh() {
+        viewController?.showLoading(true)
         interactor.fetchToDos()
     }
     
     func didChangeSearch(text: String) {
-        let q = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        currentQuery = q
-        
-        filtered = q.isEmpty
-          ? allDTO
-          : allDTO.filter { $0.todo.lowercased().contains(q) }
-
-        shownDTO = filtered.map {
-            ToDoViewModel(title: $0.todo,
-                          subTitle: "",
-                          isDone: $0.completed)
-        }
-        shownDTO.isEmpty
-          ? viewController?.showEmpty("Ничего не найдено")
-          : viewController?.show(items: shownDTO)
+        currentQuery = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        reloadData()
     }
     
     func viewDidLoad() {
-        viewController?.showLoading(true)
-        interactor.fetchToDos()
+//        viewController?.showLoading(true)
+        interactor.start() 
     }
     
     private func isMatchesSearch(_ dto: ToDoDTO) -> Bool {
@@ -117,56 +85,44 @@ extension ToDoListPresenter: ToDoListViewControllerOutputProtocol {
     }
 }
 
-extension ToDoListPresenter: ToDoDetailsModuleOutputProtocol {
-    func detailsDidUpdate(id: Int, newText: String) {
-        let trimmed = newText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { router.pop(); return }
-
-        if let pos = allDTO.firstIndex(where: { $0.id == id }) {
-            allDTO[pos].todo = trimmed
-            if let f = filtered.firstIndex(where: { $0.id == id }) {
-                filtered[f].todo = trimmed
-                shownDTO[f] = ToDoViewModel(title: trimmed, subTitle: "", isDone: filtered[f].completed)
-            }
-        } else {
-            let dto = ToDoDTO(id: id, completed: false, todo: trimmed, userId: 0)
-            allDTO.insert(dto, at: 0)
-            if isMatchesSearch(dto) {
-                filtered.insert(dto, at: 0)
-                shownDTO.insert(ToDoViewModel(title: trimmed, subTitle: "", isDone: false), at: 0)
-            }
-        }
-
-        shownDTO.isEmpty ? viewController?.showEmpty("Ничего не найдено")
-                         : viewController?.show(items: shownDTO)
-        router.pop()
-    }
-}
-
 // MARK: - ToDoListInteractorOutputProtocol
 
 extension ToDoListPresenter: ToDoListInteractorOutputProtocol {
-    func didLoad(toDos: [ToDoDTO]) {
-        shownDTO = toDos.map {
-            ToDoViewModel(title: $0.todo,
-                          subTitle: "",
-                          isDone: $0.completed)
-        }
-        all = shownDTO
-        allDTO = toDos
-        filtered = toDos
-        
+
+    func reloadData() {
         viewController?.showLoading(false)
-        
-        if shownDTO.isEmpty {
-            viewController?.showEmpty("No Activities")
-        } else {
-            viewController?.show(items: shownDTO)
+
+        let df = DateFormatter()
+        df.dateStyle = .short
+        df.timeStyle = .none
+
+        var items: [ToDoViewModel] = []
+        var ids: [NSManagedObjectID] = []
+
+        let rows = interactor.numberOfRows
+        for row in 0..<rows {
+            let rec = interactor.model(at: IndexPath(row: row, section: 0))
+            if let q = currentQuery, !q.isEmpty,
+               !(rec.title ?? "").lowercased().contains(q) { continue }
+
+            ids.append(rec.objectID)
+            items.append(.init(title: rec.title ?? "",
+                               subTitle: rec.createdAt.map { df.string(from: $0) } ?? "",
+                               isDone: rec.completed))
         }
+
+        visibleIDs = ids
+        items.isEmpty ? viewController?.showEmpty("Ничего не найдено")
+                      : viewController?.show(items: items)
     }
-    
-    func failLoad(_ error: any Error) {
+
+
+    func failLoad(_ error: Error) {
         viewController?.showLoading(false)
         viewController?.showError(error.localizedDescription)
+    }
+
+    func openDetails(objectID: NSManagedObjectID, in context: NSManagedObjectContext) {
+        router.openDetails(objectID: objectID, in: context)
     }
 }

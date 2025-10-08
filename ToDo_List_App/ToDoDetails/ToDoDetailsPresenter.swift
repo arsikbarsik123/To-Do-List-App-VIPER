@@ -1,38 +1,55 @@
-protocol ToDoDetailsModuleOutputProtocol: AnyObject {
-    func detailsDidUpdate(id: Int, newText: String)
+import Foundation
+import CoreData
+
+protocol ToDoDetailsViewControllerInputProtocol: AnyObject {
+    func show(title: String, note: String, completed: Bool)
 }
 
-class ToDoDetailsPresenter {
-    weak var view: ToDoDetailsViewInputProtocol?
-    
-    private let todo: ToDoDTO
-    weak var output: ToDoDetailsModuleOutputProtocol?
-    
-    private var originalText: String
-    private var currentText: String
-    
-    init(todo: ToDoDTO, output: ToDoDetailsModuleOutputProtocol) {
-        self.todo = todo
-        self.output = output
-        self.originalText = todo.todo
-        self.currentText = todo.todo
+protocol ToDoDetailsViewControllerOutputProtocol: AnyObject {
+    func viewDidLoad()
+    func titleChanged(_ text: String)
+    func noteChanged(_ text: String)
+    func completedChanged(_ value: Bool)
+    func viewWillDisappear()
+}
+
+final class ToDoDetailsPresenter {
+
+    private weak var view: ToDoDetailsViewControllerInputProtocol?
+    private let interactor: ToDoDetailsInteractorInput
+    private let router: ToDoDetailsRouterInputProtocol
+
+    init(view: ToDoDetailsViewControllerInputProtocol,
+         interactor: ToDoDetailsInteractorInput,
+         router: ToDoDetailsRouterInputProtocol) {
+        self.view = view
+        self.interactor = interactor
+        self.router = router
     }
 }
 
-extension ToDoDetailsPresenter: ToDoDetailsViewOutputProtocol {
-    func viewWillDissapear() {
-        let trimmed = currentText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed != originalText, !trimmed.isEmpty else { return }
-        output?.detailsDidUpdate(id: todo.id, newText: trimmed)
-    }
+// MARK: - ToDoDetailsViewControllerOutputProtocol
 
-    func didChangedText(_ text: String) {
-        currentText = text
-    }
-
+extension ToDoDetailsPresenter: ToDoDetailsViewControllerOutputProtocol {
     func viewDidLoad() {
-        view?.show(title: todo.todo,
-                   body: "id: \(todo.id) • user: \(todo.userId)",
-                   isDone: todo.completed)
+        if let s = interactor.snapshot() {
+            view?.show(title: s.title, note: s.note, completed: s.completed)
+        }
+    }
+
+    func titleChanged(_ text: String) {
+        interactor.setTitle(text)
+    }
+    
+    func noteChanged(_ text: String) {
+        interactor.setNote(text)
+    }
+    
+    func completedChanged(_ value: Bool) {
+        interactor.setCompleted(value)
+    }
+
+    func viewWillDisappear() {
+        interactor.commitChangesOnDisappear()
     }
 }

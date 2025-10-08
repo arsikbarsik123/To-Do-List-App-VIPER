@@ -1,4 +1,5 @@
 import UIKit
+import CoreData
 
 protocol ToDoListViewControllerInputProtocol: AnyObject {
     func show(items: [ToDoViewModel])
@@ -6,6 +7,7 @@ protocol ToDoListViewControllerInputProtocol: AnyObject {
     func showError(_ message: String)
     func showEmpty(_ message: String)
     func showErrorState(_ message: String)
+    func reloadData()
 }
 
 protocol ToDoListViewControllerOutputProtocol {
@@ -22,7 +24,7 @@ protocol ToDoListViewControllerOutputProtocol {
 }
 
 class ToDoListView: UITableViewController {
-    var output: ToDoListViewControllerOutputProtocol!
+    var output: ToDoListViewControllerOutputProtocol?
     private let bar = UIView()
     private var items: [ToDoViewModel] = []
     private let activity = UIActivityIndicatorView(style: .medium)
@@ -55,7 +57,9 @@ class ToDoListView: UITableViewController {
         tableView.scrollIndicatorInsets.bottom += 70
         
         setupBottomPanel()
-        output.viewDidLoad()
+        output?.viewDidLoad()
+        
+        let req: NSFetchRequest<ToDoRecord> = ToDoRecord.fetchRequest()
     }
 }
 
@@ -121,7 +125,7 @@ private extension ToDoListView {
         ])
     }
 
-    @objc private func onAdd() { output.didTapAdd() }
+    @objc private func onAdd() { output?.didTapAdd() }
 }
 
 // MARK: - Placeholder
@@ -146,8 +150,7 @@ private extension ToDoListView {
         let container = UIView()
         container.addSubview(stack)
 
-        NSLayoutConstraint.activate(
-[
+        NSLayoutConstraint.activate([
             stack.centerXAnchor.constraint(equalTo: container.centerXAnchor),
             stack.centerYAnchor.constraint(equalTo: container.centerYAnchor),
             stack.leadingAnchor
@@ -160,14 +163,13 @@ private extension ToDoListView {
                     lessThanOrEqualTo: container.safeAreaLayoutGuide.trailingAnchor,
                     constant: -16
                 )
-        ]
-)
+        ])
 
         return container
     }
     
     @objc func onRetry() {
-        output.didTapRetry()
+        output?.didTapRetry()
     }
 }
 
@@ -175,17 +177,21 @@ private extension ToDoListView {
 
 extension ToDoListView: UISearchResultsUpdating {
     func updateSearchResults(for searchController: UISearchController) {
-        output.didChangeSearch(text: search.searchBar.text ?? "")
+        output?.didChangeSearch(text: search.searchBar.text ?? "")
     }
     
     @objc func onRefresh() {
-        output.didPullToRefresh()
+        output?.didPullToRefresh()
     }
 }
 
 // MARK: - ToDoListViewControllerInputProtocol
 
 extension ToDoListView: ToDoListViewControllerInputProtocol {
+    func reloadData() {
+        tableView.reloadData()
+    }
+
     func showEmpty(_ message: String) {
         tableView.backgroundView = makePlaceholder(message)
         self.items = []
@@ -206,15 +212,16 @@ extension ToDoListView: ToDoListViewControllerInputProtocol {
     }
     
     func showLoading(_ isLoading: Bool) {
-        isLoading ? activity.startAnimating() : activity.stopAnimating()
-        !isLoading ? refresher.endRefreshing() : ()
+        refresher.endRefreshing()
     }
+
     
     func showError(_ message: String) {
         let a = UIAlertController(title: "Ошибка", message: message, preferredStyle: .alert)
         a.addAction(UIAlertAction(title: "OK", style: .default))
         present(a,animated: true)
     }
+    
 }
 
 // MARK: - tableView
@@ -222,7 +229,7 @@ extension ToDoListView: ToDoListViewControllerInputProtocol {
 extension ToDoListView {
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        output.didSelectRow(at: indexPath.row)
+        output?.didSelectRow(at: indexPath.row)
     }
     
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -252,7 +259,7 @@ extension ToDoListView {
 
             let edit = UIAction(title: "Редактировать",
                                 image: UIImage(systemName: "square.and.pencil")) { _ in
-                self?.output.didSwipeEdit(at: indexPath.row)
+                self?.output?.didSwipeEdit(at: indexPath.row)
             }
 
             let share = UIAction(title: "Поделиться",
@@ -263,7 +270,7 @@ extension ToDoListView {
             let delete = UIAction(title: "Удалить",
                                   image: UIImage(systemName: "trash"),
                                   attributes: [.destructive]) { _ in
-                self?.output.didSwipeDelete(at: indexPath.row)
+                self?.output?.didSwipeDelete(at: indexPath.row)
             }
 
             return UIMenu(title: "", children: [edit, share, delete])
