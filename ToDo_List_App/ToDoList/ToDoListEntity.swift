@@ -21,6 +21,7 @@ struct TodoListResponse: Decodable {
 
 struct ToDoViewModel {
     let title: String
+    let note: String
     let subTitle: String
     let isDone: Bool
 }
@@ -40,13 +41,14 @@ extension ToDo {
 // MARK: - ViewModel
 
 extension ToDoViewModel {
-    init(todo: ToDo, dateFormatter: DateFormatter? = nil) {
-        self.title = todo.title
-        self.isDone = todo.isDone
+    init(todo: ToDoRecord, dateFormatter: DateFormatter? = nil) {
+        self.title = todo.title ?? ""
+        self.note = todo.note ?? ""
         if let d = todo.createdAt, let dateFormatter = dateFormatter {
             self.subTitle = dateFormatter.string(from: d)
         } else {
             self.subTitle = ""
         }
+        self.isDone = todo.completed
     }
 }

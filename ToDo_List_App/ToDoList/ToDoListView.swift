@@ -12,15 +12,15 @@ protocol ToDoListViewControllerInputProtocol: AnyObject {
 
 protocol ToDoListViewControllerOutputProtocol {
     func viewDidLoad()
-    func didSelectRow(at index: Int)
+    func didSelectRow(at index: IndexPath)
     func didChangeSearch(text: String)
     func didPullToRefresh()
     func didTapRetry()
     func didFailLoad(_ message: String)
-    func didSwipeDelete(at index: Int)
-    func didToggleDone(at index: Int)
+    func didSwipeDelete(at index: IndexPath)
+    func didToggleDone(at index: IndexPath)
     func didTapAdd()
-    func didSwipeEdit(at index: Int)
+    func didSwipeEdit(at index: IndexPath)
 }
 
 class ToDoListView: UITableViewController {
@@ -41,7 +41,7 @@ class ToDoListView: UITableViewController {
         
     override func viewDidLoad() {
         super.viewDidLoad()
-        tableView.register(UITableViewCell.self, forCellReuseIdentifier: "cell")
+        tableView.register(ToDoCell.self, forCellReuseIdentifier: "ToDoCell")
         tableView.addGestureRecognizer(longPress)
         
         setupNavTitle()
@@ -49,6 +49,7 @@ class ToDoListView: UITableViewController {
         search.obscuresBackgroundDuringPresentation = false
         search.searchResultsUpdater = self
         navigationItem.searchController = search
+        navigationItem.hidesSearchBarWhenScrolling = false
         definesPresentationContext = true
         
         refresher.addTarget(self, action: #selector(onRefresh), for: .valueChanged)
@@ -57,7 +58,6 @@ class ToDoListView: UITableViewController {
         tableView.contentInset.bottom += 70
         tableView.scrollIndicatorInsets.bottom += 70
         
-        
         setupBottomPanel()
         output?.viewDidLoad()
         
@@ -65,7 +65,7 @@ class ToDoListView: UITableViewController {
     }
 }
 
-// MARK: - Black Theme
+// MARK: - Design
 
 private extension ToDoListView {
     func setupNavTitle() {
@@ -90,9 +90,20 @@ private extension ToDoListView {
     
     func blackTableView() {
         tableView.backgroundColor = .black
-        tableView.separatorColor = UIColor(white: 1, alpha: 0.08)
-        tableView.separatorInset = UIEdgeInsets(top: 0, left: 16, bottom: 0, right: 16)
         tableView.indicatorStyle = .white
+        tableView.rowHeight = 100
+        tableView.estimatedRowHeight = 100
+        tableView.separatorStyle = .singleLine
+        tableView.separatorColor = .white
+        tableView.separatorInset = UIEdgeInsets(top: 0, left: 16, bottom: 0, right: 16)
+
+        if #available(iOS 15.0, *) {
+            tableView.separatorInsetReference = .fromCellEdges
+        } else {
+            tableView.cellLayoutMarginsFollowReadableWidth = false
+        }
+
+        tableView.tableFooterView = UIView()
 
         let tf = search.searchBar.searchTextField
         tf.backgroundColor = UIColor(white: 0.12, alpha: 1)
@@ -102,16 +113,6 @@ private extension ToDoListView {
             attributes: [.foregroundColor: UIColor.systemGray]
         )
     }
-    
-    func styleCell(_ cell: UITableViewCell, done: Bool) {
-        cell.backgroundColor = UIColor(white: 0.08, alpha: 1)
-        let sel = UIView()
-        sel.backgroundColor = UIColor(white: 1, alpha: 0.08)
-        cell.selectedBackgroundView = sel
-
-        cell.tintColor = .systemYellow
-    }
-
 }
 
 // MARK: - bottomPanel
@@ -121,7 +122,7 @@ private extension ToDoListView {
         bar.translatesAutoresizingMaskIntoConstraints = false
         bar.layer.cornerRadius = 0
         bar.layer.masksToBounds = false
-        bar.backgroundColor = .black
+        bar.backgroundColor = .darkGray
         guard let host = navigationController?.view else { return }
         
         addButton.translatesAutoresizingMaskIntoConstraints = false
@@ -144,12 +145,9 @@ private extension ToDoListView {
             addButton.setImage(UIImage(systemName: "square.and.pencil"), for: .normal)
             addButton.contentEdgeInsets = UIEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
         }
-        
-        let blur = UIVisualEffectView(effect: UIBlurEffect(style: .systemThinMaterial))
-        blur.translatesAutoresizingMaskIntoConstraints = false
+
         
         host.addSubview(bar)
-        bar.addSubview(blur)
         bar.addSubview(addButton)
         bar.addSubview(counterLabel)
         
@@ -158,11 +156,6 @@ private extension ToDoListView {
             bar.trailingAnchor.constraint(equalTo: host.trailingAnchor),
             bar.bottomAnchor.constraint(equalTo: host.bottomAnchor),
             bar.heightAnchor.constraint(equalToConstant: 70),
-
-            blur.topAnchor.constraint(equalTo: bar.topAnchor),
-            blur.bottomAnchor.constraint(equalTo: bar.bottomAnchor),
-            blur.leadingAnchor.constraint(equalTo: bar.leadingAnchor),
-            blur.trailingAnchor.constraint(equalTo: bar.trailingAnchor),
             
             counterLabel.centerYAnchor.constraint(equalTo: bar.centerYAnchor),
             counterLabel.centerXAnchor.constraint(equalTo: bar.centerXAnchor),
@@ -183,10 +176,6 @@ private extension ToDoListView {
         if n1 == 1 { return "задача" }
         if (2...4).contains(n1) { return "задачи" }
         return "задач"
-    }
-    
-    private func setCounter(_ count: Int) {
-        counterLabel.text = "\(count) " + tasksWordRu(for: count)
     }
 
     @objc private func onAdd() { output?.didTapAdd() }
@@ -293,7 +282,7 @@ extension ToDoListView: ToDoListViewControllerInputProtocol {
 extension ToDoListView {
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        output?.didSelectRow(at: indexPath.row)
+        output?.didSelectRow(at: indexPath)
     }
     
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -301,30 +290,21 @@ extension ToDoListView {
     }
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "cell", for: indexPath)
-
+        guard let cell = tableView.dequeueReusableCell(
+            withIdentifier: "ToDoCell",
+            for: indexPath
+        ) as? ToDoCell else {
+            fatalError()
+        }
+        
         let item = items[indexPath.row]
-        var conf = UIListContentConfiguration.subtitleCell()
-
-        conf.text = item.title
-        conf.secondaryText = item.subTitle
-
-        conf.textProperties.color = item.isDone ? .systemGray2 : .white
-        conf.textProperties.font = .systemFont(ofSize: 17, weight: .semibold)
-
-        conf.secondaryTextProperties.color = .systemGray
-        conf.secondaryTextProperties.font = .systemFont(ofSize: 13)
-
-        cell.contentConfiguration = conf
-
-        let symbolName = item.isDone ? "checkmark.circle.fill" : "circle"
-        let iv = UIImageView(image: UIImage(systemName: symbolName))
-        iv.tintColor = item.isDone ? .systemYellow : .systemGray3
-        iv.contentMode = .scaleAspectFit
-        iv.frame = .init(x: 0, y: 0, width: 22, height: 22)
-        cell.accessoryView = iv
-
-        styleCell(cell, done: item.isDone)
+        let note = item.note
+        
+        cell.configure(title: item.title, note: note, date: item.subTitle, done: item.isDone)
+        cell.selectionStyle = .none
+        cell.backgroundColor = .black
+        cell.setSeparatorHidden(indexPath.row == items.count - 1)
+        
         return cell
     }
     
@@ -333,13 +313,13 @@ extension ToDoListView {
                             point: CGPoint) -> UIContextMenuConfiguration? {
 
         return UIContextMenuConfiguration(identifier: indexPath as NSCopying,
-                                          previewProvider: { [weak self] in
+                                          previewProvider: {
             return nil
         }, actionProvider: { [weak self] _ in
 
             let edit = UIAction(title: "Редактировать",
                                 image: UIImage(systemName: "square.and.pencil")) { _ in
-                self?.output?.didSwipeEdit(at: indexPath.row)
+                self?.output?.didSwipeEdit(at: indexPath)
             }
 
             let share = UIAction(title: "Поделиться",
@@ -350,7 +330,7 @@ extension ToDoListView {
             let delete = UIAction(title: "Удалить",
                                   image: UIImage(systemName: "trash"),
                                   attributes: [.destructive]) { _ in
-                self?.output?.didSwipeDelete(at: indexPath.row)
+                self?.output?.didSwipeDelete(at: indexPath)
             }
 
             return UIMenu(title: "", children: [edit, share, delete])
