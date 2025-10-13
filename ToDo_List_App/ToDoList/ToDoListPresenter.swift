@@ -4,9 +4,9 @@ class ToDoListPresenter {
     private let interactor: ToDoListInteractorInputProtocol
     private let router: ToDoListRouterInputProtocol
     private var viewModel: [ToDoViewModel] = []
-    private var filtered: [ToDoDTO] = [] // для View
-    private var allDTO: [ToDoDTO] = [] // network data
-    private var shownDTO: [ToDoViewModel] = [] // подготовленные данные allDTO из сети для отображения
+    private var filtered: [ToDoDTO] = []
+    private var allDTO: [ToDoDTO] = []
+    private var shownDTO: [ToDoViewModel] = []
     private var currentQuery: String?
     private var visibleIDs: [NSManagedObjectID] = []
 
@@ -33,22 +33,18 @@ extension ToDoListPresenter: ToDoListViewControllerOutputProtocol {
     }
 
     func didSelectRow(at index: IndexPath) {
-//        guard index >= 0, index < visibleIDs.count else { return }
         interactor.edit(at: index)
     }
 
     func didSwipeEdit(at index: IndexPath) {
-//        guard index >= 0, index < visibleIDs.count else { return }
         interactor.edit(at: index)
     }
 
     func didSwipeDelete(at index: IndexPath) {
-//        guard index >= 0, index < visibleIDs.count else { return }
         interactor.delete(at: index)
     }
     
     func didToggleDone(at index: IndexPath) {
-//        guard index >= 0, index < visibleIDs.count else { return }
         interactor.toggleDone(at: index)
     }
     
@@ -73,7 +69,6 @@ extension ToDoListPresenter: ToDoListViewControllerOutputProtocol {
     }
     
     func viewDidLoad() {
-//        viewController?.showLoading(true)
         interactor.start() 
     }
     
@@ -106,7 +101,6 @@ extension ToDoListPresenter: ToDoListInteractorOutputProtocol {
         vms.isEmpty ? viewController?.showEmpty("Ничего не найдено")
                       : viewController?.show(items: vms)
     }
-
 
     func failLoad(_ error: Error) {
         viewController?.showLoading(false)

@@ -2,6 +2,7 @@ import UIKit
 
 protocol ToDoDetailsViewInputProtocol: AnyObject {
     func show(title: String, note: String, completed: Bool)
+    func setDate(_ text: String)
 }
 
 protocol ToDoDetailsViewOutputProtocol: AnyObject {
@@ -13,7 +14,7 @@ protocol ToDoDetailsViewOutputProtocol: AnyObject {
 }
 
 final class ToDoDetailsView: UIViewController {
-    var output: ToDoDetailsViewControllerOutputProtocol?
+    var output: ToDoDetailsViewOutputProtocol?
 
     private let titleTextView = UITextView()
     private let titleField = UITextField()
@@ -36,7 +37,11 @@ final class ToDoDetailsView: UIViewController {
 
 // MARK: - ToDoDetailsViewControllerInputProtocol
 
-extension ToDoDetailsView: ToDoDetailsViewControllerInputProtocol {
+extension ToDoDetailsView: ToDoDetailsViewInputProtocol {
+    func setDate(_ text: String) {
+        dateLabel.text = text
+    }
+    
     func show(title: String, note: String, completed: Bool) {
         titleField.text = title
         noteTextView.text = note

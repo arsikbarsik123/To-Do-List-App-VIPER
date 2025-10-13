@@ -14,7 +14,6 @@ protocol ToDoListInteractorInputProtocol {
 
 protocol ToDoListInteractorOutputProtocol: AnyObject {
     func reloadData()
-//    func didLoad(toDos: [ToDoDTO])
     func failLoad(_ error: Error)
     func openDetails(objectID: NSManagedObjectID, in context: NSManagedObjectContext)
 }
@@ -74,7 +73,7 @@ extension ToDoListInteractor: ToDoListInteractorInputProtocol {
         ensureFetched()
         let parent = frc.object(at: indexPath)
         let ctx = CoreDataStack.shared.newChildContext()
-        _ = ctx.object(with: parent.objectID)        // материализуем в child
+        _ = ctx.object(with: parent.objectID)
         output?.openDetails(objectID: parent.objectID, in: ctx)
     }
 

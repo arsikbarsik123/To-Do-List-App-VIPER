@@ -43,6 +43,7 @@ class ToDoListView: UITableViewController {
         super.viewDidLoad()
         tableView.register(ToDoCell.self, forCellReuseIdentifier: "ToDoCell")
         tableView.addGestureRecognizer(longPress)
+        tableView.allowsSelection = true
         
         setupNavTitle()
         blackTableView()
@@ -304,6 +305,10 @@ extension ToDoListView {
         cell.selectionStyle = .none
         cell.backgroundColor = .black
         cell.setSeparatorHidden(indexPath.row == items.count - 1)
+        
+        cell.onToggleStatus = { [weak self] in
+            self?.output?.didToggleDone(at: indexPath)
+        }
         
         return cell
     }
