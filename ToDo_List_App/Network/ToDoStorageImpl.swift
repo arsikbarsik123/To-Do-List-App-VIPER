@@ -9,10 +9,12 @@ protocol ToDoStorage {
     func clearAll() throws
 }
 
-final class ToDoStorageImpl: ToDoStorage {
+final class ToDoStorageImpl {
     private let ctx: NSManagedObjectContext
     init(ctx: NSManagedObjectContext = CoreDataStack.shared.viewContext) { self.ctx = ctx }
+}
 
+extension ToDoStorageImpl: ToDoStorage {
     func fetchAll() throws -> [ToDoRecord] {
         let r: NSFetchRequest<ToDoRecord> = ToDoRecord.fetchRequest()
         r.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
@@ -51,7 +53,7 @@ final class ToDoStorageImpl: ToDoStorage {
                 fr.fetchLimit = 1
                 fr.predicate = NSPredicate(format: "remoteID == %d", dto.id)
                 
-                if let existing = try ctx.fetch(fr).first {
+                if (try ctx.fetch(fr).first) != nil {
                     continue
                 }
     

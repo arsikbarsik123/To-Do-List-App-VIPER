@@ -4,9 +4,9 @@ import CoreData
 protocol ToDoListInteractorInputProtocol {
     func fetchToDos()
     func start()
-    func delete(objectID: NSManagedObjectID)
-    func toggleDone(objectID: NSManagedObjectID)
-    func edit(objectID: NSManagedObjectID)
+    func delete(at indexPath: IndexPath)
+    func toggleDone(at indexPath: IndexPath)
+    func edit(at indexPath: IndexPath)
     var numberOfRows: Int { get }
     func model(at indexPath: IndexPath) -> ToDoRecord
     func addTapped()
@@ -14,7 +14,6 @@ protocol ToDoListInteractorInputProtocol {
 
 protocol ToDoListInteractorOutputProtocol: AnyObject {
     func reloadData()
-//    func didLoad(toDos: [ToDoDTO])
     func failLoad(_ error: Error)
     func openDetails(objectID: NSManagedObjectID, in context: NSManagedObjectContext)
 }
@@ -70,35 +69,27 @@ extension ToDoListInteractor: ToDoListInteractorInputProtocol {
         if isEmpty && !seeded { seedFromNetwork() }
     }
 
-    func edit(objectID: NSManagedObjectID) {
-        guard (try? context.existingObject(with: objectID) as? ToDoRecord) != nil else { return }
-        let child = CoreDataStack.shared.newChildContext()
-        _ = child.object(with: objectID)
-        output?.openDetails(objectID: objectID, in: child)
+    func edit(at indexPath: IndexPath) {
+        ensureFetched()
+        let parent = frc.object(at: indexPath)
+        let ctx = CoreDataStack.shared.newChildContext()
+        _ = ctx.object(with: parent.objectID)
+        output?.openDetails(objectID: parent.objectID, in: ctx)
     }
 
-    func delete(objectID: NSManagedObjectID) {
-        context.perform { [weak self] in
-            guard let self = self else { return }
-            do {
-                let obj = try self.context.existingObject(with: objectID)
-                self.context.delete(obj)
-                try CoreDataStack.shared.save(self.context)
-            } catch {
-                self.output?.failLoad(error)
-            }
-        }
+    func delete(at indexPath: IndexPath) {
+        ensureFetched()
+        let obj = frc.object(at: indexPath)
+        do { try storage.delete(obj) }
+        catch { output?.failLoad(error) }
     }
 
 
-    func toggleDone(objectID: NSManagedObjectID) {
-        context.perform { [weak self] in
-            guard let self = self else { return }
-            if let obj = try? self.context.existingObject(with: objectID) as? ToDoRecord {
-                obj.completed.toggle()
-                try? CoreDataStack.shared.save(self.context)
-            }
-        }
+    func toggleDone(at indexPath: IndexPath) {
+        ensureFetched()
+        let obj = frc.object(at: indexPath)
+        do { try storage.toggleDone(obj) }
+        catch { output?.failLoad(error) }
     }
 
     var numberOfRows: Int { ensureFetched(); return frc.fetchedObjects?.count ?? 0 }

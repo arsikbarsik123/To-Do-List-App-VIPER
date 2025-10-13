@@ -4,10 +4,9 @@ class ToDoListPresenter {
     private let interactor: ToDoListInteractorInputProtocol
     private let router: ToDoListRouterInputProtocol
     private var viewModel: [ToDoViewModel] = []
-    
-    private var filtered: [ToDoDTO] = [] // для View
-    private var allDTO: [ToDoDTO] = [] // network data
-    private var shownDTO: [ToDoViewModel] = [] // подготовленные данные allDTO из сети для отображения
+    private var filtered: [ToDoDTO] = []
+    private var allDTO: [ToDoDTO] = []
+    private var shownDTO: [ToDoViewModel] = []
     private var currentQuery: String?
     private var visibleIDs: [NSManagedObjectID] = []
 
@@ -24,7 +23,7 @@ class ToDoListPresenter {
 extension ToDoListPresenter: ToDoListViewControllerOutputProtocol {
     func didTapAdd() {
         let newId = (allDTO.map { $0.id }.max() ?? 0) + 1
-        let new = ToDoDTO(
+        _ = ToDoDTO(
             id: newId,
             completed: false,
             todo: "",
@@ -33,24 +32,20 @@ extension ToDoListPresenter: ToDoListViewControllerOutputProtocol {
         interactor.addTapped()
     }
 
-    func didSelectRow(at index: Int) {
-        guard index >= 0, index < visibleIDs.count else { return }
-        interactor.edit(objectID: visibleIDs[index])
+    func didSelectRow(at index: IndexPath) {
+        interactor.edit(at: index)
     }
 
-    func didSwipeEdit(at index: Int) {
-        guard index >= 0, index < visibleIDs.count else { return }
-        interactor.edit(objectID: visibleIDs[index])
+    func didSwipeEdit(at index: IndexPath) {
+        interactor.edit(at: index)
     }
 
-    func didSwipeDelete(at index: Int) {
-        guard index >= 0, index < visibleIDs.count else { return }
-        interactor.delete(objectID: visibleIDs[index])
+    func didSwipeDelete(at index: IndexPath) {
+        interactor.delete(at: index)
     }
     
-    func didToggleDone(at index: Int) {
-        guard index >= 0, index < visibleIDs.count else { return }
-        interactor.toggleDone(objectID: visibleIDs[index])
+    func didToggleDone(at index: IndexPath) {
+        interactor.toggleDone(at: index)
     }
     
     func didFailLoad(_ message: String) {
@@ -74,7 +69,6 @@ extension ToDoListPresenter: ToDoListViewControllerOutputProtocol {
     }
     
     func viewDidLoad() {
-//        viewController?.showLoading(true)
         interactor.start() 
     }
     
@@ -93,29 +87,20 @@ extension ToDoListPresenter: ToDoListInteractorOutputProtocol {
         viewController?.showLoading(false)
 
         let df = DateFormatter()
-        df.dateStyle = .short
-        df.timeStyle = .none
+        df.dateFormat = "dd.MM.yyyy"
 
-        var items: [ToDoViewModel] = []
-        var ids: [NSManagedObjectID] = []
-
+        var vms: [ToDoViewModel] = []
         let rows = interactor.numberOfRows
-        for row in 0..<rows {
-            let rec = interactor.model(at: IndexPath(row: row, section: 0))
-            if let q = currentQuery, !q.isEmpty,
-               !(rec.title ?? "").lowercased().contains(q) { continue }
+        vms.reserveCapacity(rows)
 
-            ids.append(rec.objectID)
-            items.append(.init(title: rec.title ?? "",
-                               subTitle: rec.createdAt.map { df.string(from: $0) } ?? "",
-                               isDone: rec.completed))
+        for i in 0..<rows {
+            let rec = interactor.model(at: IndexPath(row: i, section: 0))
+            vms.append(ToDoViewModel(todo: rec, dateFormatter: df))
         }
-
-        visibleIDs = ids
-        items.isEmpty ? viewController?.showEmpty("Ничего не найдено")
-                      : viewController?.show(items: items)
+        
+        vms.isEmpty ? viewController?.showEmpty("Ничего не найдено")
+                      : viewController?.show(items: vms)
     }
-
 
     func failLoad(_ error: Error) {
         viewController?.showLoading(false)

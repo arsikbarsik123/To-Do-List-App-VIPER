@@ -2,6 +2,7 @@ import UIKit
 
 protocol ToDoDetailsViewInputProtocol: AnyObject {
     func show(title: String, note: String, completed: Bool)
+    func setDate(_ text: String)
 }
 
 protocol ToDoDetailsViewOutputProtocol: AnyObject {
@@ -13,10 +14,11 @@ protocol ToDoDetailsViewOutputProtocol: AnyObject {
 }
 
 final class ToDoDetailsView: UIViewController {
-    var output: ToDoDetailsViewControllerOutputProtocol?
+    var output: ToDoDetailsViewOutputProtocol?
 
     private let titleTextView = UITextView()
     private let titleField = UITextField()
+    private let dateLabel = UILabel()
     private let noteTextView = UITextView()
     private let notePlaceholder = UILabel()
 
@@ -35,7 +37,11 @@ final class ToDoDetailsView: UIViewController {
 
 // MARK: - ToDoDetailsViewControllerInputProtocol
 
-extension ToDoDetailsView: ToDoDetailsViewControllerInputProtocol {
+extension ToDoDetailsView: ToDoDetailsViewInputProtocol {
+    func setDate(_ text: String) {
+        dateLabel.text = text
+    }
+    
     func show(title: String, note: String, completed: Bool) {
         titleField.text = title
         noteTextView.text = note
@@ -48,24 +54,33 @@ extension ToDoDetailsView: ToDoDetailsViewControllerInputProtocol {
 
 private extension ToDoDetailsView {
     func setupUI() {
-        view.backgroundColor = .systemBackground
+        view.backgroundColor = .black
+        
+        navigationController?.navigationBar.tintColor = .systemYellow
+        navigationItem.largeTitleDisplayMode = .never
         
         let topInset = noteTextView.textContainerInset.top
         let leftInset = noteTextView.textContainerInset.left + noteTextView.textContainer.lineFragmentPadding
 
-        titleField.font = .preferredFont(forTextStyle: .title2)
+        titleField.font = .preferredFont(forTextStyle: .largeTitle)
         titleField.placeholder = "Название"
         titleField.clearButtonMode = .whileEditing
         titleField.addTarget(self, action: #selector(onTitleChanged), for: .editingChanged)
+        titleField.textColor = .white
+        
+        dateLabel.font = .preferredFont(forTextStyle: .footnote)
+        dateLabel.textColor = .systemGray2
+        dateLabel.text = "aboba"
 
-        noteTextView.font = .preferredFont(forTextStyle: .body)
+        noteTextView.font = .systemFont(ofSize: 18)
         noteTextView.delegate = self
         noteTextView.isScrollEnabled = true
-        noteTextView.backgroundColor = .clear
+        noteTextView.backgroundColor = .black
+        noteTextView.textColor = .white
 
         notePlaceholder.text = "Заметка"
         notePlaceholder.textColor = .secondaryLabel
-        notePlaceholder.font = .preferredFont(forTextStyle: .body)
+        notePlaceholder.font = .systemFont(ofSize: 18)
         notePlaceholder.translatesAutoresizingMaskIntoConstraints = false
         noteTextView.addSubview(notePlaceholder)
         NSLayoutConstraint.activate([
@@ -75,20 +90,20 @@ private extension ToDoDetailsView {
                                                      constant: -(noteTextView.textContainerInset.right + noteTextView.textContainer.lineFragmentPadding))
         ])
 
-        let stack = UIStackView(arrangedSubviews: [titleField, noteTextView])
+        let stack = UIStackView(arrangedSubviews: [titleField, dateLabel, noteTextView])
         stack.axis = .vertical
-        stack.spacing = 12
+        stack.spacing = 10
+        stack.backgroundColor = .black
         stack.translatesAutoresizingMaskIntoConstraints = false
 
         view.addSubview(stack)
 
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 16),
-            stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
             stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
 
-            // ВАЖНО: даём высоту textView, иначе он 0 в UIStackView
-            noteTextView.heightAnchor.constraint(greaterThanOrEqualToConstant: 180)
+            noteTextView.heightAnchor.constraint(greaterThanOrEqualToConstant: 700)
         ])
 
         titleField.becomeFirstResponder()

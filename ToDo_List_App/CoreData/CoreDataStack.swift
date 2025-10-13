@@ -15,7 +15,6 @@ final class CoreDataStack {
         container.viewContext.automaticallyMergesChangesFromParent = true
     }
 
-    // ВАЖНО: parent = viewContext
     func newBackgroundContext() -> NSManagedObjectContext {
         let ctx = NSManagedObjectContext(concurrencyType: .privateQueueConcurrencyType)
         ctx.parent = viewContext

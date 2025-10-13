@@ -1,25 +1,18 @@
 import Foundation
 import CoreData
 
-protocol ToDoDetailsViewControllerInputProtocol: AnyObject {
-    func show(title: String, note: String, completed: Bool)
-}
-
-protocol ToDoDetailsViewControllerOutputProtocol: AnyObject {
-    func viewDidLoad()
-    func titleChanged(_ text: String)
-    func noteChanged(_ text: String)
-    func completedChanged(_ value: Bool)
-    func viewWillDisappear()
-}
-
 final class ToDoDetailsPresenter {
-
-    private weak var view: ToDoDetailsViewControllerInputProtocol?
+    private weak var view: ToDoDetailsViewInputProtocol?
     private let interactor: ToDoDetailsInteractorInput
     private let router: ToDoDetailsRouterInputProtocol
+    private let df: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = .init(identifier: "ru_RU")
+        f.dateFormat = "dd.MM.yyyy"
+        return f
+    }()
 
-    init(view: ToDoDetailsViewControllerInputProtocol,
+    init(view: ToDoDetailsViewInputProtocol,
          interactor: ToDoDetailsInteractorInput,
          router: ToDoDetailsRouterInputProtocol) {
         self.view = view
@@ -30,11 +23,12 @@ final class ToDoDetailsPresenter {
 
 // MARK: - ToDoDetailsViewControllerOutputProtocol
 
-extension ToDoDetailsPresenter: ToDoDetailsViewControllerOutputProtocol {
+extension ToDoDetailsPresenter: ToDoDetailsViewOutputProtocol {
     func viewDidLoad() {
-        if let s = interactor.snapshot() {
-            view?.show(title: s.title, note: s.note, completed: s.completed)
-        }
+        let s = interactor.snapshot()
+        view?.show(title: s.title, note: s.note, completed: s.completed)
+        let dateText = s.createdAt.map { df.string(from: $0) } ?? ""
+        view?.setDate(dateText)
     }
 
     func titleChanged(_ text: String) {

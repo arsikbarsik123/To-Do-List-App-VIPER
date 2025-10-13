@@ -7,10 +7,18 @@ protocol ToDoDetailsInteractorInput: AnyObject {
     func setNote(_ text: String)
     func setCompleted(_ flag: Bool)
     func commitChangesOnDisappear()
-    func snapshot() -> (title: String, note: String, completed: Bool)? 
+    func snapshot() -> (title: String, note: String, completed: Bool, createdAt: Date?)
 }
 
 final class ToDoDetailsInteractor: ToDoDetailsInteractorInput {
+    func snapshot() -> (title: String, note: String, completed: Bool, createdAt: Date?) {
+        let o = object
+        return (o?.title ?? "",
+                o?.note  ?? "",
+                o?.completed ?? false,
+                o?.createdAt)
+    }
+
     private var ctx: NSManagedObjectContext!
     private var objectID: NSManagedObjectID!
     private var object: ToDoRecord? {
@@ -21,14 +29,11 @@ final class ToDoDetailsInteractor: ToDoDetailsInteractorInput {
         self.objectID = objectID
         self.ctx = editingContext
     }
-    
-    func snapshot() -> (title: String, note: String, completed: Bool)? {
-        guard let o = object else { return nil }
-        return (o.title ?? "", o.note ?? "", o.completed)
-    }
 
     func setTitle(_ text: String) { object?.title = text }
+    
     func setNote(_ text: String) { object?.note = text }
+    
     func setCompleted(_ flag: Bool) { object?.completed = flag }
 
     func commitChangesOnDisappear() {
